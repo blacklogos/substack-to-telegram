@@ -2,6 +2,8 @@
 
 Đẩy bài mới từ RSS của Substack sang một kênh Telegram. Chạy bằng GitHub Actions, không cần server, không tốn tiền.
 
+Dựng cho newsletter [Lẩu 1K](https://lau1k.substack.com/), chạy được với bất kỳ publication Substack nào: đổi `SUBSTACK_PUBLICATION` là xong.
+
 Substack không có webhook khi đăng bài, tín hiệu duy nhất là RSS ở `https://<publication>.substack.com/feed`. Repo này quét feed theo lịch, so với danh sách bài đã đăng, thấy bài mới thì gọi Telegram Bot API.
 
 ## Chuẩn bị
