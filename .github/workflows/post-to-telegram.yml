@@ -1,0 +1,52 @@
+name: Post new Substack entries to Telegram
+
+on:
+  schedule:
+    # Mỗi 30 phút. Cron của GitHub hay trễ vài phút khi hệ thống bận,
+    # muốn đăng ngay lúc vừa publish thì bấm Run workflow ở tab Actions.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Chỉ in ra log, không gửi Telegram"
+        type: boolean
+        default: false
+
+# Cần quyền ghi để commit lại state/posted.json sau khi đăng.
+permissions:
+  contents: write
+
+concurrency:
+  group: post-to-telegram
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Check feed and post
+        env:
+          SUBSTACK_PUBLICATION: ${{ vars.SUBSTACK_PUBLICATION }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE_FOOTER: ${{ vars.MESSAGE_FOOTER }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: bun src/main.ts
+
+      - name: Commit state
+        run: |
+          if git diff --quiet -- state/posted.json; then
+            echo "State không đổi, bỏ qua commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/posted.json
+          git commit -m "chore(state): record posted entries"
+          git push

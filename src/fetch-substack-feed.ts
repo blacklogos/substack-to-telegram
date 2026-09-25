@@ -1,0 +1,112 @@
+/**
+ * Đọc RSS của một publication Substack và trả về danh sách bài, mới nhất trước.
+ *
+ * Substack không có webhook khi đăng bài, feed là tín hiệu duy nhất. Feed có
+ * cấu trúc cố định và chỉ phục vụ một publication, nên tách thẻ bằng regex là
+ * đủ và tránh kéo thêm một thư viện XML chỉ để đọc bốn thẻ.
+ */
+
+export type FeedItem = {
+  /** Định danh ổn định của bài, dùng để biết bài nào đã đăng rồi. */
+  guid: string;
+  title: string;
+  link: string;
+  /** Đoạn mở đầu Substack sinh ra, đã bỏ hết thẻ HTML. Có thể rỗng. */
+  summary: string;
+  /** Thời điểm đăng, giữ nguyên chuỗi của feed để ghi log. */
+  publishedAt: string;
+};
+
+/**
+ * Trả các thực thể về ký tự gốc: tên, thập phân (&#8217;) và thập lục (&#x2019;).
+ * `&amp;` xử lý cuối cùng để không vô tình giải mã hai lần trong một lượt.
+ */
+function decodeEntities(raw: string): string {
+  return raw
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Gỡ lớp CDATA rồi giải mã ở tầng XML.
+ *
+ * Substack bọc nội dung trong CDATA nhưng bên trong lại là HTML đã escape sẵn,
+ * nên dấu nháy cong về tới đây vẫn còn ở dạng `&amp;#8217;`. Tầng HTML được
+ * giải mã riêng ở `decodeHtmlText`, đừng gộp hai bước làm một.
+ */
+function decodeXmlText(raw: string): string {
+  return decodeEntities(raw.replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, "$1")).trim();
+}
+
+/** Giải mã nốt tầng HTML nằm bên trong giá trị đã qua `decodeXmlText`. */
+function decodeHtmlText(text: string): string {
+  return decodeEntities(text).trim();
+}
+
+/** Lấy nội dung thẻ đầu tiên có tên `tag` bên trong một khối XML. */
+function extractTag(block: string, tag: string): string {
+  const match = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
+  return match ? decodeXmlText(match[1]!) : "";
+}
+
+/** Bỏ thẻ HTML trong phần mô tả, giải mã entity còn lại và ép về một dòng. */
+function stripHtml(html: string): string {
+  return decodeHtmlText(html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+export function parseFeed(xml: string): FeedItem[] {
+  const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
+  const items: FeedItem[] = [];
+
+  for (const block of blocks) {
+    const link = extractTag(block, "link");
+    // guid của Substack đôi khi trống; link là định danh ổn định thay thế.
+    const guid = extractTag(block, "guid") || link;
+    const title = decodeHtmlText(extractTag(block, "title"));
+    if (!guid || !title) continue;
+
+    items.push({
+      guid,
+      title,
+      link,
+      summary: stripHtml(extractTag(block, "description")),
+      publishedAt: extractTag(block, "pubDate"),
+    });
+  }
+
+  return items;
+}
+
+/** Chuẩn hoá tên publication hoặc URL thành địa chỉ feed. */
+export function feedUrlFor(publication: string): string {
+  const trimmed = publication.trim().replace(/\/+$/, "");
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed.endsWith("/feed") ? trimmed : `${trimmed}/feed`;
+  }
+  return `https://${trimmed}.substack.com/feed`;
+}
+
+export async function fetchFeed(publication: string): Promise<FeedItem[]> {
+  const url = feedUrlFor(publication);
+  const response = await fetch(url, {
+    headers: { "user-agent": "substack-to-telegram (+https://github.com)" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Không đọc được feed ${url}: HTTP ${response.status}`);
+  }
+
+  const items = parseFeed(await response.text());
+  if (items.length === 0) {
+    throw new Error(`Feed ${url} không có item nào, kiểm tra lại tên publication.`);
+  }
+  return items;
+}
