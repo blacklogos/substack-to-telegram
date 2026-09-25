@@ -22,6 +22,8 @@ type Config = {
   blurb?: string;
   footer?: string;
   dryRun: boolean;
+  /** Gửi thử bài mới nhất rồi thoát, không đụng vào state. */
+  sendLatest: boolean;
 };
 
 function readConfig(): Config {
@@ -48,6 +50,7 @@ function readConfig(): Config {
     blurb: env.MESSAGE_BLURB?.trim() || undefined,
     footer: env.MESSAGE_FOOTER?.trim() || undefined,
     dryRun,
+    sendLatest: env.SEND_LATEST === "1" || process.argv.includes("--send-latest"),
   };
 }
 
@@ -60,6 +63,25 @@ async function main(): Promise<number> {
   const config = readConfig();
   const items = await fetchFeed(config.publication);
   console.log(`Feed có ${items.length} bài, mới nhất: ${items[0]!.title}`);
+
+  // Chế độ thử: gửi bài mới nhất rồi dừng. Không ghi state, nên chạy bao
+  // nhiêu lần cũng được và không ảnh hưởng tới lịch đăng thật về sau.
+  if (config.sendLatest) {
+    const latest = items[0]!;
+    console.log(`Chế độ gửi thử, không ghi state: "${latest.title}"`);
+    const result = await sendMessage({
+      token: config.token,
+      chatId: config.chatId,
+      text: formatMessage(latest, { blurb: config.blurb, footer: config.footer }),
+      dryRun: config.dryRun,
+    });
+    if (!result.ok) {
+      console.error(`Gửi hỏng: ${result.error}`);
+      return 1;
+    }
+    console.log("Đã gửi bài thử.");
+    return 0;
+  }
 
   let state = await loadState(config.statePath);
 

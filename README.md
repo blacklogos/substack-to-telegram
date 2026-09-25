@@ -6,6 +6,8 @@ Dựng cho newsletter [Lẩu 1K](https://lau1k.substack.com/), chạy được v
 
 Substack không có webhook khi đăng bài, tín hiệu duy nhất là RSS ở `https://<publication>.substack.com/feed`. Repo này quét feed theo lịch, so với danh sách bài đã đăng, thấy bài mới thì gọi Telegram Bot API.
 
+Hướng dẫn cài từng bước, kể cả cách gửi thử một bài có sẵn: [docs/setup.md](docs/setup.md).
+
 ## Chuẩn bị
 
 Tạo bot: nhắn `/newbot` cho [@BotFather](https://t.me/BotFather), đặt tên, nhận token dạng `123456:ABC...`.

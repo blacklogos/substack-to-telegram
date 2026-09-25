@@ -7,7 +7,8 @@
   "scripts": {
     "check": "DRY_RUN=1 bun src/main.ts",
     "post": "bun src/main.ts",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "test-send": "SEND_LATEST=1 bun src/main.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

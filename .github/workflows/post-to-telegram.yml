@@ -11,6 +11,10 @@ on:
         description: "Chỉ in ra log, không gửi Telegram"
         type: boolean
         default: false
+      send_latest:
+        description: "Gửi thử bài mới nhất, không ghi state"
+        type: boolean
+        default: false
 
 # Cần quyền ghi để commit lại state/posted.json sau khi đăng.
 permissions:
@@ -37,6 +41,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MESSAGE_FOOTER: ${{ vars.MESSAGE_FOOTER }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          SEND_LATEST: ${{ inputs.send_latest && '1' || '0' }}
         run: bun src/main.ts
 
       - name: Commit state
