@@ -21,6 +21,7 @@ type Config = {
   statePath: string;
   blurb?: string;
   footer?: string;
+  timeZone: string;
   dryRun: boolean;
   /** Gửi thử bài mới nhất rồi thoát, không đụng vào state. */
   sendLatest: boolean;
@@ -49,6 +50,7 @@ function readConfig(): Config {
     statePath: env.STATE_PATH?.trim() || "state/posted.json",
     blurb: env.MESSAGE_BLURB?.trim() || undefined,
     footer: env.MESSAGE_FOOTER?.trim() || undefined,
+    timeZone: env.MESSAGE_TIMEZONE?.trim() || "Asia/Ho_Chi_Minh",
     dryRun,
     sendLatest: env.SEND_LATEST === "1" || process.argv.includes("--send-latest"),
   };
@@ -72,7 +74,7 @@ async function main(): Promise<number> {
     const result = await sendMessage({
       token: config.token,
       chatId: config.chatId,
-      text: formatMessage(latest, { blurb: config.blurb, footer: config.footer }),
+      text: formatMessage(latest, { blurb: config.blurb, footer: config.footer, timeZone: config.timeZone }),
       dryRun: config.dryRun,
     });
     if (!result.ok) {
@@ -102,7 +104,7 @@ async function main(): Promise<number> {
   console.log(`Có ${pending.length} bài mới${config.dryRun ? " (dry run)" : ""}.`);
 
   for (const item of pending) {
-    const text = formatMessage(item, { blurb: config.blurb, footer: config.footer });
+    const text = formatMessage(item, { blurb: config.blurb, footer: config.footer, timeZone: config.timeZone });
     const result = await sendMessage({
       token: config.token,
       chatId: config.chatId,

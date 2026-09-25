@@ -45,7 +45,7 @@ Hai biến còn lại đã set sẵn, xem bằng `gh variable list`:
 | Biến | Giá trị | Sửa khi nào |
 |---|---|---|
 | `SUBSTACK_PUBLICATION` | `lau1k` | Đổi tên publication |
-| `MESSAGE_FOOTER` | `Lẩu 1K · thư thứ Bảy` | Muốn dòng cuối khác, hoặc để trống thì bỏ đi |
+| `MESSAGE_FOOTER` |  `Lẩu 1K • {date}` | Muốn dòng cuối khác, hoặc để trống thì bỏ đi |
 
 ## D. Gửi thử một bài có sẵn
 
