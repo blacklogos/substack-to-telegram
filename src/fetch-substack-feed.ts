@@ -94,11 +94,22 @@ export function feedUrlFor(publication: string): string {
   return `https://${trimmed}.substack.com/feed`;
 }
 
+/**
+ * Substack trả 403 cho request đến từ IP datacenter kèm user-agent kiểu bot,
+ * nên runner của GitHub Actions bị chặn trong khi máy cá nhân thì không.
+ * Gửi kèm bộ header của một trình duyệt thật để qua được lớp lọc đó.
+ */
+const BROWSER_HEADERS: Record<string, string> = {
+  "user-agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+  accept: "application/rss+xml, application/xml, text/xml, */*;q=0.8",
+  "accept-language": "en-US,en;q=0.9,vi;q=0.8",
+  "cache-control": "no-cache",
+};
+
 export async function fetchFeed(publication: string): Promise<FeedItem[]> {
   const url = feedUrlFor(publication);
-  const response = await fetch(url, {
-    headers: { "user-agent": "substack-to-telegram (+https://github.com)" },
-  });
+  const response = await fetch(url, { headers: BROWSER_HEADERS });
 
   if (!response.ok) {
     throw new Error(`Không đọc được feed ${url}: HTTP ${response.status}`);
