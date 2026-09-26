@@ -47,6 +47,34 @@ Hai biến còn lại đã set sẵn, xem bằng `gh variable list`:
 | `SUBSTACK_PUBLICATION` | `lau1k` | Đổi tên publication |
 | `MESSAGE_FOOTER` |  `Lẩu 1K • {date}` | Muốn dòng cuối khác, hoặc để trống thì bỏ đi |
 
+## C2. Nhận cảnh báo khi job hỏng
+
+Cron chạy 48 lần mỗi ngày và bạn sẽ không ngồi đọc log. Bước này cho bot nhắn
+riêng cho bạn khi có lần chạy fail. Bỏ qua bước này thì hệ thống vẫn chạy, chỉ
+là hỏng thì im lặng.
+
+1. Mở chat riêng với bot (`t.me/lau1k_feed_bot`), bấm Start, nhắn một câu bất kỳ.
+   Bot không thể nhắn trước cho bạn, phải có bước này.
+2. Lấy chat id của bạn:
+
+```bash
+TOKEN=$(grep '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2-)
+curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" \
+  | python3 -c "import json,sys; [print(u['message']['chat']['id']) for u in json.load(sys.stdin)['result'] if u.get('message',{}).get('chat',{}).get('type')=='private']"
+```
+
+3. Nạp số đó vào secret:
+
+```bash
+gh secret set TELEGRAM_ALERT_CHAT_ID
+```
+
+Đừng dùng `@lau1k` ở đây. Cảnh báo lỗi mà rơi vào kênh công khai thì người
+đọc sẽ thấy log hỏng hóc của bạn.
+
+Workflow chỉ báo ở lần fail đầu tiên sau một lần chạy thành công. Hỏng liên
+tục cả ngày thì bạn nhận một tin, không phải 48 tin.
+
 ## D. Gửi thử một bài có sẵn
 
 Chế độ gửi thử lấy bài mới nhất trên feed, gửi vào kênh, và **không ghi state**. Nghĩa là chạy bao nhiêu lần cũng được, và không ảnh hưởng tới lịch đăng thật sau này.

@@ -44,6 +44,35 @@ jobs:
           SEND_LATEST: ${{ inputs.send_latest && '1' || '0' }}
         run: bun src/main.ts
 
+      # Cron chạy 48 lần/ngày, hỏng một cái là hỏng cả ngày. Chỉ báo ở lần
+      # fail đầu tiên sau một lần chạy thành công, để không bị dội 48 tin.
+      - name: Alert on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ALERT_CHAT_ID: ${{ secrets.TELEGRAM_ALERT_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$ALERT_CHAT_ID" ]; then
+            echo "Chưa set TELEGRAM_ALERT_CHAT_ID, bỏ qua cảnh báo."
+            exit 0
+          fi
+
+          previous=$(gh run list --workflow=post-to-telegram.yml --limit 2 \
+            --json databaseId,conclusion \
+            --jq "[.[] | select(.databaseId != ${{ github.run_id }})][0].conclusion" || echo "")
+          if [ "$previous" = "failure" ]; then
+            echo "Lần chạy trước cũng fail, đã báo rồi, bỏ qua."
+            exit 0
+          fi
+
+          curl -sS -X POST "https://api.telegram.org/bot${ALERT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${ALERT_CHAT_ID}" \
+            --data-urlencode "text=substack-to-telegram vừa fail. Bài mới (nếu có) chưa được đăng. Log: ${RUN_URL}" \
+            --data-urlencode "link_preview_options={\"is_disabled\":true}" \
+            -o /dev/null -w "Đã gửi cảnh báo, HTTP %{http_code}\n"
+
       - name: Commit state
         run: |
           if git diff --quiet -- state/posted.json; then
