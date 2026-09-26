@@ -1,0 +1,28 @@
+name: Diagnose feed access
+
+# Tạm thời: dò xem đường nào lấy được feed Substack từ IP của GitHub runner.
+# Xoá workflow này sau khi đã chọn được cách.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe candidates
+        run: |
+          probe() {
+            code=$(curl -s -o /tmp/body -w '%{http_code}' -m 25 \
+              -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" \
+              "$1" || echo 000)
+            size=$(wc -c < /tmp/body)
+            head=$(head -c 120 /tmp/body | tr '\n' ' ')
+            echo "[$code] ${size}B  $2"
+            echo "        $head"
+          }
+          probe "https://lau1k.substack.com/feed" "feed truc tiep"
+          probe "https://lau1k.substack.com/api/v1/posts?limit=5" "substack api"
+          probe "https://r.jina.ai/https://lau1k.substack.com/feed" "r.jina.ai"
+          probe "https://api.allorigins.win/raw?url=https%3A%2F%2Flau1k.substack.com%2Ffeed" "allorigins"
+          probe "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Flau1k.substack.com%2Ffeed" "rss2json"
