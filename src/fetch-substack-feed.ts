@@ -6,6 +6,8 @@
  * đủ và tránh kéo thêm một thư viện XML chỉ để đọc bốn thẻ.
  */
 
+import { fetchViaRss2Json } from "./fetch-via-rss2json";
+
 export type FeedItem = {
   /** Định danh ổn định của bài, dùng để biết bài nào đã đăng rồi. */
   guid: string;
@@ -107,17 +109,42 @@ const BROWSER_HEADERS: Record<string, string> = {
   "cache-control": "no-cache",
 };
 
-export async function fetchFeed(publication: string): Promise<FeedItem[]> {
-  const url = feedUrlFor(publication);
+/** Đọc thẳng feed. Ném lỗi nếu bị chặn hoặc feed rỗng. */
+async function fetchDirect(url: string): Promise<FeedItem[]> {
   const response = await fetch(url, { headers: BROWSER_HEADERS });
-
   if (!response.ok) {
-    throw new Error(`Không đọc được feed ${url}: HTTP ${response.status}`);
+    throw new Error(`HTTP ${response.status}`);
   }
 
   const items = parseFeed(await response.text());
   if (items.length === 0) {
-    throw new Error(`Feed ${url} không có item nào, kiểm tra lại tên publication.`);
+    throw new Error("feed không có item nào");
   }
+  return items;
+}
+
+/**
+ * Lấy feed, ưu tiên đọc thẳng và chỉ đi vòng khi bị chặn.
+ *
+ * Ở máy cá nhân đường thẳng luôn chạy. Trên GitHub Actions nó bị Cloudflare
+ * của Substack trả 403 vì IP datacenter, lúc đó mới chuyển sang rss2json.
+ * Thứ tự này giữ cho dịch vụ bên thứ ba ở vai dự phòng chứ không thành
+ * đường đi mặc định.
+ */
+export async function fetchFeed(publication: string): Promise<FeedItem[]> {
+  const url = feedUrlFor(publication);
+
+  try {
+    return await fetchDirect(url);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`Đọc thẳng ${url} không được (${reason}), thử qua rss2json.`);
+  }
+
+  const items = await fetchViaRss2Json(url);
+  if (items.length === 0) {
+    throw new Error(`Không đọc được feed ${url} bằng cả hai đường.`);
+  }
+  console.log(`Lấy được ${items.length} bài qua rss2json.`);
   return items;
 }
