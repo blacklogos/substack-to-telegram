@@ -45,9 +45,36 @@ function normalizePubDate(pubDate: string): string {
     : pubDate;
 }
 
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 2000;
+
+/**
+ * rss2json thỉnh thoảng trả 5xx hoặc rớt kết nối vài giây rồi tự hồi phục
+ * (run 36263283370 fail vì một lần HTTP 500). Thử lại lỗi tạm thời trước khi
+ * bỏ cuộc; lỗi 4xx thì trả ngay vì thử lại cũng vô ích.
+ */
+async function fetchWithRetry(url: string): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    let reason: string;
+    try {
+      const response = await fetch(url);
+      if (response.ok || response.status < 500) return response;
+      reason = `HTTP ${response.status}`;
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error);
+    }
+
+    if (attempt >= MAX_ATTEMPTS) {
+      throw new Error(`rss2json lỗi sau ${MAX_ATTEMPTS} lần thử: ${reason}`);
+    }
+    console.log(`rss2json lỗi (${reason}), thử lại lần ${attempt + 1}/${MAX_ATTEMPTS}.`);
+    await Bun.sleep(RETRY_DELAY_MS * attempt);
+  }
+}
+
 export async function fetchViaRss2Json(feedUrl: string): Promise<FeedItem[]> {
   const url = `${ENDPOINT}?rss_url=${encodeURIComponent(feedUrl)}`;
-  const response = await fetch(url);
+  const response = await fetchWithRetry(url);
 
   if (!response.ok) {
     throw new Error(`rss2json trả HTTP ${response.status}`);
